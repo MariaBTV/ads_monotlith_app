@@ -1,13 +1,13 @@
 ﻿# Retail Monolith App
 
-A lightweight ASP.NET Core 8 Razor Pages application that simulates a retail monolith before decomposition.  
+A lightweight ASP.NET Core 9 Razor Pages application that simulates a retail monolith before decomposition.  
 It includes product listing, shopping cart, checkout, and inventory management — built to demonstrate modernisation and refactoring patterns.
 
 ---
 
 ## Features
 
-- ASP.NET Core 8 (Razor Pages)
+- ASP.NET Core 9 (Razor Pages)
 - Entity Framework Core (SQL Server LocalDB)
 - Dependency Injection with modular services:
   - `CartService`
@@ -44,28 +44,63 @@ It includes product listing, shopping cart, checkout, and inventory management �
 
 ---
 
-## Project Setup
+## Development Setup
 
-### 1 Clone the repository
+You can run and edit this application in three different ways:
 
+### 1. Local Development Environment
 
+Run the application directly on your local machine with your preferred IDE or editor.
+
+**Prerequisites:**
+- .NET 9 SDK installed ([download](https://dotnet.microsoft.com/download/dotnet/9.0))
+- SQL Server LocalDB (included with Visual Studio) or SQL Server instance
+- Your favorite code editor (Visual Studio, VS Code, Rider, etc.)
+
+**Steps:**
+```bash
 git clone https://github.com/lavann/ads_monotlith_app.git
 cd ads_monotlith_app
-
-
-### 2 Clone the repository
-.NET 8 SDK must be installed. Download it from the [.NET website](https://dotnet.microsoft.com/download/dotnet/8.0).	
-SQL Server LocalDB (comes with Visual Studio) or any SQL Server instance
-Ensure you have SQL Server LocalDB installed (comes with Visual Studio) or have access to any SQL Server instance.
-
-### 3 Restore dependencies
 dotnet restore
+dotnet ef database update
+dotnet run
+```
 
-### 4 Update the database
-This project uses Entity Framework Core with a design-time factory for migrations.
+### 2. Docker-Hosted Dev Container
 
+Use a Docker container with a pre-configured development environment. This ensures consistency across different machines without installing dependencies locally.
 
-##  Database & Migrations
+**Prerequisites:**
+- Docker Desktop installed and running
+- Visual Studio Code with the Dev Containers extension
+
+**Steps:**
+1. Clone the repository
+2. Open the folder in VS Code
+3. When prompted, click "Reopen in Container" (or use Command Palette: `Dev Containers: Reopen in Container`)
+4. VS Code will build and start the dev container with all dependencies pre-installed
+5. Run `dotnet ef database update` and `dotnet run` inside the container terminal
+
+### 3. GitHub Codespaces
+
+Develop entirely in the cloud with zero local setup. Codespaces provides a full VS Code environment in your browser.
+
+**Prerequisites:**
+- GitHub account with Codespaces access
+
+**Steps:**
+1. Navigate to the repository on GitHub
+2. Click the green "Code" button
+3. Select the "Codespaces" tab
+4. Click "Create codespace on main"
+5. Wait for the environment to initialize
+6. Run `dotnet ef database update` and `dotnet run` in the integrated terminal
+
+All three environments provide the same development experience with the .NET SDK, C# extension, and all necessary tools pre-configured.
+
+---
+
+## Database & Migrations
 
 ### Apply existing migrations
 dotnet ef database update
@@ -82,20 +117,27 @@ with the connection string:
 
 ### Seeding Sample Data
 
-- At startup, the app automatically runs:
-	- await AppDbContext.SeedAsync(db);
+At startup, the app automatically runs `await AppDbContext.SeedAsync(db);` which seeds 50 sample products with random categories, prices, and inventory.
 
-	- 
-This seeds 50 sample products with random categories, prices, and inventory.
+To reseed manually:
+```bash
+dotnet ef database drop -f
+dotnet ef database update
+dotnet run
+```
 
-- To reseed manually
-	- dotnet ef database drop -f
-	- dotnet ef database update
-	- dotnet run
+---
 
+## Running the Application
 
-## Run the application
-- dotnet run
+Start the application:
+```bash
+dotnet run
+```
+
+Access the app at `https://localhost:5001` or `http://localhost:5000`.
+
+### Available Endpoints
 
 | Path               | Description           |
 | ------------------ | --------------------- |
@@ -105,7 +147,6 @@ This seeds 50 sample products with random categories, prices, and inventory.
 | `/api/checkout`    | Checkout API          |
 | `/api/orders/{id}` | Order details API     |
 | `/health`          | Health check endpoint |
-Access the app at `https://localhost:5001` or `http://localhost:5000`.
 
 ---
 
