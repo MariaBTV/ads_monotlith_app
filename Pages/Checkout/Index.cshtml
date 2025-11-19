@@ -6,9 +6,14 @@
 
 <h2>Checkout</h2>
 
+<div asp-validation-summary="All" class="text-danger"></div>
+
 @if (!Model.Lines.Any())
 {
-<div class="alert alert-warning">Your cart is empty.</div>
+<div class="alert alert-warning">
+    Your cart is empty. 
+    <a href="/Products" class="alert-link">Browse products</a> to add items to your cart.
+</div>
 }
 else
 {

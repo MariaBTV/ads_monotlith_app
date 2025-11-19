@@ -42,7 +42,16 @@ namespace RetailMonolith.Pages.Checkout
                 return Page();
             }
 
-            //perform checkout using MockPaymentGateway
+            // Validate cart is not empty before attempting checkout
+            var cart = await _cartService.GetCartWithLinesAsync("guest");
+            if (cart.Lines.Count == 0)
+            {
+                ModelState.AddModelError(string.Empty, "Your cart is empty. Please add items before checking out.");
+                await OnGetAsync();
+                return Page();
+            }
+
+            // Perform checkout via the Checkout API
             var order = await _checkoutService.CheckoutAsync("guest", PaymentToken);
 
             // redirect to order confirmation page

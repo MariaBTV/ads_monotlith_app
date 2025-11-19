@@ -3,24 +3,52 @@
 A lightweight ASP.NET Core 9 Razor Pages application that simulates a retail monolith before decomposition.  
 It includes product listing, shopping cart, checkout, and inventory management — built to demonstrate modernisation and refactoring patterns.
 
+**Current Status:** Phase 4 Complete - All decomposition phases verified and cleanup complete.
+
+---
+
+## Documentation
+
+### Decomposition Project
+- [Guiding Star](docs/monolith%20decomposition/1_Guiding_Star.md) - Strategic vision and architecture goals
+- [Phased Plan](docs/monolith%20decomposition/2_Phased_Plan.md) - Step-by-step decomposition roadmap
+- [Coding Standards](docs/monolith%20decomposition/3_Coding_Standards.md) - Development guidelines and best practices
+- [Checkout API Reference](docs/monolith%20decomposition/4_Checkout_API_Reference.md) - Complete API documentation
+
+### Project Progress
+- ✅ Phase 1: Scaffold New API (Completed 19 Nov 2025)
+- ✅ Phase 2: Migrate Business Logic (Completed 19 Nov 2025)
+- ✅ Phase 3: Refactor Monolith to Proxy (Completed 19 Nov 2025)
+- ✅ Phase 4: Verification & Cleanup (Completed 19 Nov 2025)
+
 ---
 
 ## Features
 
+### Monolith (Legacy)
 - ASP.NET Core 9 (Razor Pages)
 - Entity Framework Core (SQL Server LocalDB)
 - Dependency Injection with modular services:
   - `CartService`
-  - `CheckoutService`
-  - `MockPaymentGateway`
+  - `CheckoutService` (HTTP proxy to microservice only)
 - 50 sample seeded products with random inventory
 - End-to-end retail flow:
-  - Products → Cart → Checkout → Orders
+  - Products → Cart → Checkout (proxied to API) → Orders
 - Minimal APIs:
-  - `POST /api/checkout`
+  - `POST /api/checkout` (legacy endpoint - also proxies to microservice)
   - `GET /api/orders/{id}`
 - Health-check endpoint at `/health`
-- Ready for decomposition into microservices
+
+### Checkout Microservice (New)
+- ASP.NET Core 9 Web API
+- RESTful endpoint: `POST /api/checkout`
+- Full checkout business logic extracted
+- Comprehensive test coverage (10 tests: 9 unit + 1 integration)
+- Docker-ready with multi-stage Dockerfile
+- Health checks at `/health`
+- OpenAPI/Swagger documentation
+- Container-ready (stateless, config via env vars, console logging)
+- See [Checkout API Reference](docs/monolith%20decomposition/4_Checkout_API_Reference.md) for complete documentation
 
 ---
 
@@ -102,8 +130,21 @@ All three environments provide the same development experience with the .NET SDK
 
 ## Database & Migrations
 
+### Initial Setup
+
+**Start SQL Server LocalDB:**
+```bash
+sqllocaldb start MSSQLLocalDB
+```
+
+**Connection String:**
+- Development: `Server=(localdb)\MSSQLLocalDB;Database=ApplicationDB;Trusted_Connection=True;TrustServerCertificate=True;`
+- Database name: `ApplicationDB`
+
 ### Apply existing migrations
+```bash
 dotnet ef database update
+```
 
 ### Create a new migration
 
@@ -112,8 +153,6 @@ dotnet ef database update
 	- `dotnet ef database update`
 
 - EF Core uses DesignTimeDbContextFactory (Data/DesignTimeDbContextFactory.cs)
-with the connection string:
-	- `Server=(localdb)\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true`
 
 ### Seeding Sample Data
 
@@ -130,23 +169,101 @@ dotnet run
 
 ## Running the Application
 
-Start the application:
+### Prerequisites
+
+Ensure SQL Server LocalDB is running:
 ```bash
-dotnet run
+sqllocaldb start MSSQLLocalDB
 ```
 
-Access the app at `https://localhost:5001` or `http://localhost:5000`.
+### Monolith Only
+Start the monolith application:
+```bash
+dotnet run --project RetailMonolith.csproj
+```
+
+Access the app at `http://localhost:5068` (configured in `Properties/launchSettings.json`).
+
+### Checkout Microservice Only
+Start the Checkout API:
+```bash
+dotnet run --project RetailMonolith.Checkout.Api
+```
+
+Access the API at `https://localhost:5101` or `http://localhost:5100`.
+
+Test the health endpoint:
+```bash
+curl http://localhost:5100/health
+```
+
+### Both Services (Phase 3+)
+After Phase 3 is complete, you'll need to run both services:
+```bash
+# Terminal 1: Start the Checkout API
+dotnet run --project RetailMonolith.Checkout.Api
+
+# Terminal 2: Start the Monolith
+dotnet run --project RetailMonolith.csproj
+```
+
+**Note:** The monolith automatically creates the database and runs migrations on startup.
 
 ### Available Endpoints
 
-| Path               | Description           |
-| ------------------ | --------------------- |
-| `/`                | Home Page             |
-| `/Products`        | Product catalogue     |
-| `/Cart`            | Shopping cart         |
-| `/api/checkout`    | Checkout API          |
-| `/api/orders/{id}` | Order details API     |
-| `/health`          | Health check endpoint |
+**Monolith:** (Default: `http://localhost:5068`)
+| Path               | Description                      |
+| ------------------ | -------------------------------- |
+| `/`                | Home Page                        |
+| `/Products`        | Product catalogue                |
+| `/Cart`            | Shopping cart                    |
+| `/Checkout`        | Checkout page (proxies to API)   |
+| `/Orders`          | Order history                    |
+| `/api/checkout`    | Checkout API (proxies to API)    |
+| `/api/orders/{id}` | Order details API                |
+| `/health`          | Health check endpoint            |
+
+**Checkout Microservice:**
+| Path            | Description                    |
+| --------------- | ------------------------------ |
+| `/api/checkout` | Process checkout               |
+| `/health`       | Health check endpoint          |
+| `/swagger`      | OpenAPI documentation (dev)    |
+
+---
+
+## Testing
+
+### Run All Tests
+```bash
+# Run all tests in the solution
+dotnet test
+
+# Run only Checkout API tests
+dotnet test RetailMonolith.Checkout.Tests
+
+# Run only Monolith tests
+dotnet test RetailMonolith.Tests
+
+# Run with detailed output
+dotnet test --logger "console;verbosity=detailed"
+
+# Run with code coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### Test Coverage
+- **Checkout API:** 10 tests (9 unit + 1 integration)
+  - Happy paths: valid cart, multiple items
+  - Validation failures: empty cart, invalid payment token
+  - Business rules: insufficient stock
+  - External failures: payment gateway, database errors
+
+- **Monolith:** 8 tests (7 proxy unit + 1 E2E integration)
+  - Proxy tests: All HTTP response scenarios (200, 400, 500, 503, timeout)
+  - E2E test: Full checkout flow using WebApplicationFactory
+
+**Total:** 18 tests passing
 
 ---
 

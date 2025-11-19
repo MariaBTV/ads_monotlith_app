@@ -1,7 +1,5 @@
-﻿namespace RetailMonolith.Services
+namespace RetailMonolith.Checkout.Api.Services
 {
-    //Mockable payment gateway interface
-
     public record PaymentRequest(decimal Amount, string Currency, string Token);
     public record PaymentResult(bool Succeeded, string? ProviderRef, string? Error);
 
