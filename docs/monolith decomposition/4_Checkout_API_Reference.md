@@ -357,6 +357,79 @@ dotnet test RetailMonolith.Checkout.Tests --logger "console;verbosity=detailed"
 
 ---
 
+## Monolith Integration (Phase 3)
+
+### Proxy Pattern
+
+The monolith's `CheckoutService` has been refactored to act as an HTTP proxy to this API. All checkout requests are forwarded to the microservice.
+
+**Monolith CheckoutService Implementation:**
+- Uses `HttpClient` with typed client pattern
+- Forwards `customerId` and `paymentToken` to `/api/checkout`
+- Maps API response DTO to domain model `Order`
+- Handles all HTTP error responses (400, 500, 503)
+- Includes timeout handling (30-second default)
+
+**Configuration in Monolith:**
+```json
+{
+  "CheckoutApiBaseUrl": "http://localhost:5100"
+}
+```
+
+**Environment Variable Override:**
+```bash
+CheckoutApiBaseUrl=http://checkout-api:5100
+```
+
+### Startup Requirements
+
+To run the full system after Phase 3:
+
+1. **Start SQL Server LocalDB:**
+   ```bash
+   sqllocaldb start MSSQLLocalDB
+   ```
+
+2. **Start Checkout API** (Terminal 1):
+   ```bash
+   cd RetailMonolith.Checkout.Api
+   dotnet run
+   ```
+   - Runs on: `http://localhost:5100`
+   - Health check: `curl http://localhost:5100/health`
+
+3. **Start Monolith** (Terminal 2):
+   ```bash
+   dotnet run --project RetailMonolith.csproj
+   ```
+   - Runs on: `http://localhost:5068`
+   - Automatically creates database and seeds data
+   - Proxies all checkout requests to API
+
+4. **Access Application:**
+   - Open browser: `http://localhost:5068`
+   - Navigate: Products → Cart → Checkout
+   - Checkout request flows: Browser → Monolith → API → Database
+
+### Testing the Integration
+
+**Monolith Proxy Tests:** 8 tests covering all scenarios
+- Valid API response (200 OK)
+- Validation failure (400 Bad Request)
+- Server error (500 Internal Server Error)
+- Service unavailable (503)
+- Network timeout
+- Response field mapping
+- E2E flow with in-memory database and mocked API
+
+**Run Proxy Tests:**
+```bash
+dotnet test RetailMonolith.Tests
+```
+
+---
+
 ## Deployment
 
 ### Docker
@@ -524,13 +597,14 @@ Set log level in `appsettings.Development.json`:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 19 Nov 2025 | Initial release - Phase 2 complete |
+| 1.1 | 19 Nov 2025 | Phase 4 complete - Monolith proxy verified, cleanup done |
 
 ---
 
 ## Related Documentation
 
 - [Guiding Star](1_Guiding_Star.md) - Strategic vision and future roadmap
-- [Phased Plan](2_Phased_Plan.md) - Decomposition phases and acceptance criteria
+- [Phased Plan](2_Phased_Plan.md) - Decomposition phases and acceptance criteria (All phases complete)
 - [Coding Standards](3_Coding_Standards.md) - Development standards and best practices
 
 ---
@@ -542,5 +616,5 @@ For issues, questions, or feedback about the Checkout API, please refer to the p
 ---
 
 *Last Updated: 19 November 2025*  
-*Document Version: 1.0*  
-*API Version: 1.0 (Phase 2 Complete)*
+*Document Version: 1.1*  
+*API Version: 1.0 (Phase 4 Complete - Monolith Decomposition Verified)*
