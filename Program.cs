@@ -38,8 +38,6 @@ if (builder.Environment.EnvironmentName.Equals("Testing", StringComparison.Ordin
     });
 }
 
-builder.Services.AddScoped<IPaymentGateway, MockPaymentGateway>();
-
 // Register HttpClient for CheckoutService proxy (Phase 3: Strangler Fig pattern)
 builder.Services.AddHttpClient<ICheckoutService, CheckoutService>(client =>
 {

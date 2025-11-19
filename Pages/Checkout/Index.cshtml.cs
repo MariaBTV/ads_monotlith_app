@@ -42,7 +42,7 @@ namespace RetailMonolith.Pages.Checkout
                 return Page();
             }
 
-            //perform checkout using MockPaymentGateway
+            // Perform checkout via the Checkout API
             var order = await _checkoutService.CheckoutAsync("guest", PaymentToken);
 
             // redirect to order confirmation page
