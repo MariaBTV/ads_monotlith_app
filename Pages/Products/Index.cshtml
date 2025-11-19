@@ -3,9 +3,15 @@
 @{
     ViewData["Title"] = "Products";
 }
-<h2>
-    Products
-</h2>
+<h2>Products</h2>
+<form method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="q" value="@Request.Query["q"]" class="form-control" placeholder="Search products naturally (e.g. 'comfortable running shoes')" />
+        <button class="btn btn-outline-primary" type="submit">Search</button>
+        <a href="/Products" class="btn btn-outline-secondary">Reset</a>
+    </div>
+    <small class="text-muted">Powered by Azure AI Search with vector embeddings and semantic ranking.</small>
+</form>
 
 <div class="container">
     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">

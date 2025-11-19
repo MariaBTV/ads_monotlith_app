@@ -1,11 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using RetailMonolith.Data;
 using RetailMonolith.Services;
-
+using Azure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// DB — localdb for hack; swap to SQL in appsettings for Azure
+// Load secrets from Azure Key Vault
+var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrEmpty(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUri),
+        new DefaultAzureCredential());
+}
+
+// DB ï¿½ localdb for hack; swap to SQL in appsettings for Azure
 builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ??
                    "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
@@ -16,6 +25,8 @@ builder.Services.AddRazorPages();
 builder.Services.AddScoped<IPaymentGateway, MockPaymentGateway>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ISemanticSearchService, SemanticSearchService>();
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
@@ -26,6 +37,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
     await AppDbContext.SeedAsync(db); // seed the database
+    var semantic = scope.ServiceProvider.GetRequiredService<ISemanticSearchService>();
+    await semantic.EnsureIndexAsync();
+    var products = db.Products.ToList();
+    await semantic.IndexProductsAsync(products);
 }
 
 
@@ -47,7 +62,7 @@ app.UseAuthorization();
 app.MapRazorPages();
 
 
-// minimal APIs for the “decomp” path
+// minimal APIs for the ï¿½decompï¿½ path
 app.MapPost("/api/checkout", async (ICheckoutService svc) =>
 {
     var order = await svc.CheckoutAsync("guest", "tok_test");

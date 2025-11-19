@@ -13,11 +13,6 @@ namespace RetailMonolith.Pages.Products
     {
         private readonly AppDbContext _db;
         private readonly ICartService _cartService;
-        public IndexModel(AppDbContext db, ICartService cartService)
-        {
-            _db = db;
-            _cartService = cartService;
-        }
 
         public IList<Product> Products { get; set; } = new List<Product>();
 
@@ -42,7 +37,25 @@ namespace RetailMonolith.Pages.Products
             return "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80";
         }
 
-        public async Task OnGetAsync() => Products = await _db.Products.Where(p => p.IsActive).ToListAsync();
+        private readonly ISemanticSearchService _semanticSearch;
+        public IndexModel(AppDbContext db, ICartService cartService, ISemanticSearchService semanticSearch)
+        {
+            _db = db;
+            _cartService = cartService;
+            _semanticSearch = semanticSearch;
+        }
+
+        public async Task OnGetAsync(string? q)
+        {
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                Products = (await _semanticSearch.SemanticSearchAsync(q)).ToList();
+            }
+            else
+            {
+                Products = await _db.Products.Where(p => p.IsActive).ToListAsync();
+            }
+        }
 
         public async Task OnPostAsync(int productId)
         {
