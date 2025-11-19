@@ -4,91 +4,58 @@ using RetailMonolith.Services;
 
 namespace RetailMonolith;
 
-var builder = WebApplication.CreateBuilder(args);
-
-// DB � localdb for hack; swap to SQL in appsettings for Azure
-builder.Services.AddDbContext<AppDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ??
-                   "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
-
-
-// Add services to the container.
-builder.Services.AddRazorPages();
-builder.Services.AddScoped<IPaymentGateway, MockPaymentGateway>();
-builder.Services.AddScoped<ICheckoutService, CheckoutService>();
-builder.Services.AddScoped<ICartService, CartService>();
-builder.Services.AddScoped<IChatService, ChatService>();
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
-
-// Configure session for chat functionality
-builder.Services.AddDistributedMemoryCache();
-builder.Services.AddSession(options =>
-{
-    options.IdleTimeout = TimeSpan.FromMinutes(30);
-    options.Cookie.HttpOnly = true;
-    options.Cookie.IsEssential = true;
-});
-
-builder.Services.AddHealthChecks();
-
-var app = builder.Build();
-
-// auto-migrate & seed (hack convenience)
-using (var scope = app.Services.CreateScope())
 public partial class Program
 {
     // Marker class for WebApplicationFactory.
-}
-
-public partial class ProgramEntry
-{
-    public static WebApplication BuildWebApp(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-// DB � localdb for hack; swap to SQL in appsettings for Azure
-// In test environments, the test will configure the DbContext separately
-if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddDbContext<AppDbContext>(o =>
-        o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ??
-                       "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
-}
+        // DB - localdb for hack; swap to SQL in appsettings for Azure
+        // In test environments, the test will configure the DbContext separately
+        if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.Services.AddDbContext<AppDbContext>(o =>
+                o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ??
+                               "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
+        }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles();
+        // Add services to the container.
+        builder.Services.AddRazorPages();
 
-app.UseRouting();
+        // Conditionally disable antiforgery for Testing environment (E2E tests only)
+        if (builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.Services.AddAntiforgery(options => options.SuppressXFrameOptionsHeader = true);
+            builder.Services.Configure<Microsoft.AspNetCore.Mvc.RazorPages.RazorPagesOptions>(options =>
+            {
+                options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
+            });
+        }
+        else
+        {
+            builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+        }
 
-app.UseSession();
-
-app.UseAuthorization();
-
-app.MapRazorPages();
-
-// Add services to the container.
-builder.Services.AddRazorPages();
-
-// minimal APIs for the �decomp� path
-app.MapPost("/api/checkout", async (ICheckoutService svc) =>
-// Conditionally disable antiforgery for Testing environment (E2E tests only)
-if (builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddAntiforgery(options => options.SuppressXFrameOptionsHeader = true);
-    builder.Services.Configure<Microsoft.AspNetCore.Mvc.RazorPages.RazorPagesOptions>(options =>
-    {
-        options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
-    });
-}
-
-// Register HttpClient for CheckoutService proxy (Phase 3: Strangler Fig pattern)
-builder.Services.AddHttpClient<ICheckoutService, CheckoutService>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["CheckoutApi:BaseUrl"] ?? "http://localhost:5100");
-    client.Timeout = TimeSpan.FromSeconds(30);
-});
+        // Register HttpClient for CheckoutService proxy (Phase 3: Strangler Fig pattern)
+        builder.Services.AddHttpClient<ICheckoutService, CheckoutService>(client =>
+        {
+            client.BaseAddress = new Uri(builder.Configuration["CheckoutApi:BaseUrl"] ?? "http://localhost:5100");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
 
         builder.Services.AddScoped<ICartService, CartService>();
+        builder.Services.AddScoped<IChatService, ChatService>();
+
+        // Configure session for chat functionality
+        builder.Services.AddDistributedMemoryCache();
+        builder.Services.AddSession(options =>
+        {
+            options.IdleTimeout = TimeSpan.FromMinutes(30);
+            options.Cookie.HttpOnly = true;
+            options.Cookie.IsEssential = true;
+        });
+
         builder.Services.AddHealthChecks();
 
         var app = builder.Build();
@@ -117,6 +84,8 @@ builder.Services.AddHttpClient<ICheckoutService, CheckoutService>(client =>
 
         app.UseRouting();
 
+        app.UseSession();
+
         app.UseAuthorization();
 
         app.MapRazorPages();
@@ -136,12 +105,6 @@ builder.Services.AddHttpClient<ICheckoutService, CheckoutService>(client =>
             return order is null ? Results.NotFound() : Results.Ok(order);
         });
 
-        return app;
-    }
-
-    public static async Task Main(string[] args)
-    {
-        var app = BuildWebApp(args);
         await app.RunAsync();
     }
 }
