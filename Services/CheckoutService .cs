@@ -1,58 +1,90 @@
-﻿using Microsoft.EntityFrameworkCore;
-using RetailMonolith.Data;
+﻿using System.Net.Http.Json;
+using System.Text.Json;
 using RetailMonolith.Models;
 
 namespace RetailMonolith.Services
 {
+    /// <summary>
+    /// Proxy implementation of CheckoutService that forwards requests to the Checkout API microservice.
+    /// This is part of the Strangler Fig pattern migration.
+    /// </summary>
     public class CheckoutService : ICheckoutService
     {
-        private readonly AppDbContext _db;
-        private readonly IPaymentGateway _payments;
+        private readonly HttpClient _httpClient;
+        private readonly JsonSerializerOptions _jsonOptions;
 
-        public CheckoutService(AppDbContext db, IPaymentGateway payments)
+        public CheckoutService(HttpClient httpClient)
         {
-            _db = db; _payments = payments;
+            _httpClient = httpClient;
+            _jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
         }
+
         public async Task<Order> CheckoutAsync(string customerId, string paymentToken, CancellationToken ct = default)
         {
-            // 1) pull cart
-            var cart = await _db.Carts
-                .Include(c => c.Lines)
-                .FirstOrDefaultAsync(c => c.CustomerId == customerId, ct)
-                ?? throw new InvalidOperationException("Cart not found");
-
-            var total = cart.Lines.Sum(l => l.UnitPrice * l.Quantity);
-
-            // 2) reserve/decrement stock (optimistic)
-            foreach (var line in cart.Lines)
+            // Construct request to Checkout API
+            var request = new
             {
-                var inv = await _db.Inventory.SingleAsync(i => i.Sku == line.Sku, ct);
-                if (inv.Quantity < line.Quantity) throw new InvalidOperationException($"Out of stock: {line.Sku}");
-                inv.Quantity -= line.Quantity;
+                customerId,
+                paymentToken
+            };
+
+            try
+            {
+                // Call the Checkout API microservice
+                var response = await _httpClient.PostAsJsonAsync("/api/checkout", request, ct);
+
+                // Handle different response codes
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(ct);
+                    throw new InvalidOperationException($"Checkout validation failed: {errorContent}");
+                }
+
+                if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+                {
+                    throw new HttpRequestException("Checkout service temporarily unavailable");
+                }
+
+                // Ensure success or throw
+                response.EnsureSuccessStatusCode();
+
+                // Parse API response
+                var apiResponse = await response.Content.ReadFromJsonAsync<CheckoutApiResponse>(_jsonOptions, ct)
+                    ?? throw new InvalidOperationException("Empty response from Checkout API");
+
+                // Map API response to Order model expected by Razor Pages
+                var order = new Order
+                {
+                    Id = apiResponse.OrderId,
+                    CustomerId = customerId,
+                    Status = apiResponse.Status,
+                    Total = apiResponse.Total,
+                    CreatedUtc = apiResponse.CreatedUtc
+                };
+
+                return order;
             }
-
-            // 3) charge
-            var pay = await _payments.ChargeAsync(new(total, "GBP", paymentToken), ct);
-            var status = pay.Succeeded ? "Paid" : "Failed";
-
-            // 4) create order
-            var order = new Order { CustomerId = customerId, Status = status, Total = total };
-            order.Lines = cart.Lines.Select(l => new OrderLine
+            catch (HttpRequestException ex)
             {
-                Sku = l.Sku,
-                Name = l.Name,
-                UnitPrice = l.UnitPrice,
-                Quantity = l.Quantity
-            }).ToList();
+                // Wrap HTTP errors for consistent error handling
+                throw new HttpRequestException($"Failed to communicate with Checkout API: {ex.Message}", ex);
+            }
+            catch (TaskCanceledException ex) when (ex.CancellationToken == ct || !ct.IsCancellationRequested)
+            {
+                // Timeout occurred
+                throw new TaskCanceledException("Checkout API request timed out", ex);
+            }
+        }
 
-            _db.Orders.Add(order);
-
-            // 5) clear cart
-            _db.CartLines.RemoveRange(cart.Lines);
-            await _db.SaveChangesAsync(ct);
-
-            // (future) publish events here: OrderCreated / PaymentProcessed / InventoryReserved
-            return order;
+        private class CheckoutApiResponse
+        {
+            public int OrderId { get; set; }
+            public string Status { get; set; } = string.Empty;
+            public decimal Total { get; set; }
+            public DateTime CreatedUtc { get; set; }
         }
     }
 }

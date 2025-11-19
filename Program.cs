@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using RetailMonolith.Data;
 using RetailMonolith.Services;
 
+namespace RetailMonolith;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,19 +35,24 @@ var app = builder.Build();
 
 // auto-migrate & seed (hack convenience)
 using (var scope = app.Services.CreateScope())
+public partial class Program
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-    await AppDbContext.SeedAsync(db); // seed the database
+    // Marker class for WebApplicationFactory.
 }
 
-
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+public partial class ProgramEntry
 {
-    app.UseExceptionHandler("/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    public static WebApplication BuildWebApp(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+// DB � localdb for hack; swap to SQL in appsettings for Azure
+// In test environments, the test will configure the DbContext separately
+if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddDbContext<AppDbContext>(o =>
+        o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ??
+                       "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
 }
 
 app.UseHttpsRedirection();
@@ -60,21 +66,83 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
+// Add services to the container.
+builder.Services.AddRazorPages();
 
 // minimal APIs for the �decomp� path
 app.MapPost("/api/checkout", async (ICheckoutService svc) =>
+// Conditionally disable antiforgery for Testing environment (E2E tests only)
+if (builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
 {
-    var order = await svc.CheckoutAsync("guest", "tok_test");
-    return Results.Ok(new { order.Id, order.Status, order.Total });
+    builder.Services.AddAntiforgery(options => options.SuppressXFrameOptionsHeader = true);
+    builder.Services.Configure<Microsoft.AspNetCore.Mvc.RazorPages.RazorPagesOptions>(options =>
+    {
+        options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
+    });
+}
+
+// Register HttpClient for CheckoutService proxy (Phase 3: Strangler Fig pattern)
+builder.Services.AddHttpClient<ICheckoutService, CheckoutService>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["CheckoutApi:BaseUrl"] ?? "http://localhost:5100");
+    client.Timeout = TimeSpan.FromSeconds(30);
 });
 
-app.MapGet("/api/orders/{id:int}", async (int id, AppDbContext db) =>
-{
-    var order = await db.Orders.Include(o => o.Lines)
-        .SingleOrDefaultAsync(o => o.Id == id);
+        builder.Services.AddScoped<ICartService, CartService>();
+        builder.Services.AddHealthChecks();
 
-    return order is null ? Results.NotFound() : Results.Ok(order);
-});
+        var app = builder.Build();
 
+        // auto-migrate & seed (hack convenience)
+        // Skip migration in test environment to allow test-specific database configuration
+        if (!app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+        {
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.Database.Migrate();
+                AppDbContext.SeedAsync(db).GetAwaiter().GetResult();
+            }
+        }
 
-app.Run();
+        // Configure the HTTP request pipeline.
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseExceptionHandler("/Error");
+            app.UseHsts();
+        }
+
+        app.UseHttpsRedirection();
+        app.UseStaticFiles();
+
+        app.UseRouting();
+
+        app.UseAuthorization();
+
+        app.MapRazorPages();
+
+        // minimal APIs for the decomp path
+        app.MapPost("/api/checkout", async (ICheckoutService svc) =>
+        {
+            var order = await svc.CheckoutAsync("guest", "tok_test");
+            return Results.Ok(new { order.Id, order.Status, order.Total });
+        });
+
+        app.MapGet("/api/orders/{id:int}", async (int id, AppDbContext db) =>
+        {
+            var order = await db.Orders.Include(o => o.Lines)
+                .SingleOrDefaultAsync(o => o.Id == id);
+
+            return order is null ? Results.NotFound() : Results.Ok(order);
+        });
+
+        return app;
+    }
+
+    public static async Task Main(string[] args)
+    {
+        var app = BuildWebApp(args);
+        await app.RunAsync();
+    }
+}
+
