@@ -3,7 +3,7 @@
 A lightweight ASP.NET Core 9 Razor Pages application that simulates a retail monolith before decomposition.  
 It includes product listing, shopping cart, checkout, and inventory management — built to demonstrate modernisation and refactoring patterns.
 
-**Current Status:** Phase 2 Complete - Checkout microservice extracted with full business logic and test coverage.
+**Current Status:** Phase 3 Complete - Monolith refactored to proxy all checkout requests to microservice.
 
 ---
 
@@ -18,7 +18,7 @@ It includes product listing, shopping cart, checkout, and inventory management �
 ### Project Progress
 - ✅ Phase 1: Scaffold New API (Completed 19 Nov 2025)
 - ✅ Phase 2: Migrate Business Logic (Completed 19 Nov 2025)
-- ⏳ Phase 3: Refactor Monolith to Proxy (Pending)
+- ✅ Phase 3: Refactor Monolith to Proxy (Completed 19 Nov 2025)
 - ⏳ Phase 4: Verification & Cleanup (Pending)
 
 ---
@@ -30,13 +30,13 @@ It includes product listing, shopping cart, checkout, and inventory management �
 - Entity Framework Core (SQL Server LocalDB)
 - Dependency Injection with modular services:
   - `CartService`
-  - `CheckoutService` (to be replaced with API proxy in Phase 3)
-  - `MockPaymentGateway`
+  - `CheckoutService` (now HTTP proxy to microservice)
+  - `MockPaymentGateway` (no longer used by monolith - retained for API)
 - 50 sample seeded products with random inventory
 - End-to-end retail flow:
-  - Products → Cart → Checkout → Orders
+  - Products → Cart → Checkout (proxied to API) → Orders
 - Minimal APIs:
-  - `POST /api/checkout`
+  - `POST /api/checkout` (legacy endpoint - also proxies to microservice)
   - `GET /api/orders/{id}`
 - Health-check endpoint at `/health`
 

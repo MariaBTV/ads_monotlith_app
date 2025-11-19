@@ -10,12 +10,16 @@
     <!-- Exclude nested project folders from compilation -->
     <Compile Remove="RetailMonolith.Checkout.Api/**" />
     <Compile Remove="RetailMonolith.Checkout.Tests/**" />
+    <Compile Remove="RetailMonolith.Tests/**" />
     <Content Remove="RetailMonolith.Checkout.Api/**" />
     <Content Remove="RetailMonolith.Checkout.Tests/**" />
+    <Content Remove="RetailMonolith.Tests/**" />
     <EmbeddedResource Remove="RetailMonolith.Checkout.Api/**" />
     <EmbeddedResource Remove="RetailMonolith.Checkout.Tests/**" />
+    <EmbeddedResource Remove="RetailMonolith.Tests/**" />
     <None Remove="RetailMonolith.Checkout.Api/**" />
     <None Remove="RetailMonolith.Checkout.Tests/**" />
+    <None Remove="RetailMonolith.Tests/**" />
   </ItemGroup>
 
   <ItemGroup>
