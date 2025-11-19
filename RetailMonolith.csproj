@@ -7,6 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Exclude nested project folders from compilation -->
+    <Compile Remove="RetailMonolith.Checkout.Api/**" />
+    <Compile Remove="RetailMonolith.Checkout.Tests/**" />
+    <Content Remove="RetailMonolith.Checkout.Api/**" />
+    <Content Remove="RetailMonolith.Checkout.Tests/**" />
+    <EmbeddedResource Remove="RetailMonolith.Checkout.Api/**" />
+    <EmbeddedResource Remove="RetailMonolith.Checkout.Tests/**" />
+    <None Remove="RetailMonolith.Checkout.Api/**" />
+    <None Remove="RetailMonolith.Checkout.Tests/**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.HealthChecks" Version="2.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
