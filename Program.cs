@@ -4,6 +4,37 @@ using RetailMonolith.Services;
 
 namespace RetailMonolith;
 
+var builder = WebApplication.CreateBuilder(args);
+
+// DB � localdb for hack; swap to SQL in appsettings for Azure
+builder.Services.AddDbContext<AppDbContext>(o =>
+    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ??
+                   "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
+
+
+// Add services to the container.
+builder.Services.AddRazorPages();
+builder.Services.AddScoped<IPaymentGateway, MockPaymentGateway>();
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+
+// Configure session for chat functionality
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+// auto-migrate & seed (hack convenience)
+using (var scope = app.Services.CreateScope())
 public partial class Program
 {
     // Marker class for WebApplicationFactory.
@@ -24,10 +55,22 @@ if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.Ordi
                        "Server=(localdb)\\MSSQLLocalDB;Database=RetailMonolith;Trusted_Connection=True;MultipleActiveResultSets=true"));
 }
 
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+
+app.UseRouting();
+
+app.UseSession();
+
+app.UseAuthorization();
+
+app.MapRazorPages();
 
 // Add services to the container.
 builder.Services.AddRazorPages();
 
+// minimal APIs for the �decomp� path
+app.MapPost("/api/checkout", async (ICheckoutService svc) =>
 // Conditionally disable antiforgery for Testing environment (E2E tests only)
 if (builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
 {
